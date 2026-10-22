@@ -6,6 +6,9 @@
 #ifdef ECHOCRAFT_NATIVE_USB
 #include <USB.h>
 static USBCDC appUsb;
+#ifdef ECHOCRAFT_UAC
+#include "usb_microphone.h"
+#endif
 static bool appStreaming=false;
 static bool uartStreaming=false;
 static uint32_t appSequence=0,appSampleIndex=0,appOverflowStart=0;
@@ -82,10 +85,19 @@ void setup() {
   if(result!=ESP_OK) {Serial.printf("INIT_ERROR %s\n",esp_err_to_name(result));while(true)delay(1000);}
   denoiser.reset();humReducer.reset();
 #ifdef ECHOCRAFT_NATIVE_USB
+#ifdef ECHOCRAFT_UAC
+  if(!UsbMicrophone::begin()){Serial.println("UAC_INIT_ERROR");while(true)delay(1000);}
+#endif
   USB.productName("EchoCraft Mic");USB.manufacturerName("EchoCraft");USB.firmwareVersion(0x0102);
+#ifdef ECHOCRAFT_UAC
+  USB.firmwareVersion(0x0200);
+#endif
   appUsb.enableReboot(false);appUsb.setRxBufferSize(1024);appUsb.setTxTimeoutMs(25);appUsb.begin();USB.begin();
 #endif
   Serial.println("EchoCraft realtime-denoise v1.2; output_gain=3.0; hum=125,250Hz/6dB; 32k mono; R=record, B=bypass, D=denoise, T=replay");
+#ifdef ECHOCRAFT_UAC
+  Serial.println("UAC1+CDC: EchoCraft Smart Audio; U=USB audio diagnostics");
+#endif
 }
 
 void loop() {
@@ -103,6 +115,9 @@ void loop() {
     int command=Serial.read();
     if(command=='B') bypass=true;
     if(command=='D') bypass=false;
+#ifdef ECHOCRAFT_UAC
+    if(command=='U')UsbMicrophone::diagnostics();
+#endif
 #ifdef ECHOCRAFT_NATIVE_USB
     if(command=='P') {appStreaming=false;appSequence=appSampleIndex=0;drainEvents();appOverflowStart=overflows;uartStreaming=true;}
     if(command=='Q') uartStreaming=false;
@@ -124,6 +139,9 @@ void loop() {
   drainEvents();
   for(int i=0;i<256;++i) inputFrame[i]=(rawSamples[i]>>8)/8388608.f;
   processFrame();
+#ifdef ECHOCRAFT_UAC
+  UsbMicrophone::push(pcmFrame,256);
+#endif
 #ifdef ECHOCRAFT_NATIVE_USB
   if(appStreaming || uartStreaming) {
     struct __attribute__((packed)) PacketHeader {

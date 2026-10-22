@@ -46,6 +46,8 @@ Android 工具链：AGP 9.1.1、Gradle 9.3.1、SDK 35、Build Tools 36.0.0、NDK
 
 [接线说明](hardware/README.md) · [Android 说明](android/README.md) · [降噪说明](docs/board-denoise.md)
 
+另有标准 USB 麦克风试验环境 `mic-usb-uac`：电脑系统音频采集已通过，但手机自带相机仍有无声反馈，尚未作为默认固件。详见 [USB 麦克风状态](docs/usb-microphone.md)。
+
 ## 仓库结构与提交范围
 
 | 目录 | 内容 |
