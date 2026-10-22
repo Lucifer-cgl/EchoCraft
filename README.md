@@ -2,7 +2,7 @@
 
 软硬件协同的模块化收音系统：硬件负责近距离采集与轻量处理，Android 软件负责视频拍摄、声音精修和作品管理。
 
-[下载 Android APK](https://lucifer-cgl.github.io/EchoCraft/download/) · [GitHub Release](https://github.com/Lucifer-cgl/EchoCraft/releases/latest) · [加速下载 APK](https://gh-proxy.com/https://github.com/Lucifer-cgl/EchoCraft/releases/download/v0.1.0/EchoCraft-debug.apk)
+[下载 Android APK](https://lucifer-cgl.github.io/EchoCraft/download/) · [GitHub Release](https://github.com/Lucifer-cgl/EchoCraft/releases/tag/v0.1.0) · [加速下载 APK](https://gh-proxy.com/https://github.com/Lucifer-cgl/EchoCraft/releases/download/v0.1.0/EchoCraft-debug.apk)
 
 ## 当前功能
 
