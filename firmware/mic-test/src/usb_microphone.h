@@ -9,6 +9,11 @@
 #include "soc/usb_struct.h"
 #include "soc/usb_reg.h"
 
+// The bundled ESP32 DCD has no single-endpoint close implementation. Its generic
+// TinyUSB close API therefore cannot clear a pending transfer after a host stops
+// polling an alternate interface. Supply the missing IN ISO close operation.
+extern "C" void dcd_edpt_close(uint8_t rhport,uint8_t address);
+
 namespace UsbMicrophone {
 static constexpr size_t capacity=2048;
 static int16_t ring[capacity];
@@ -102,6 +107,7 @@ static bool control(uint8_t rhport,uint8_t stage,const tusb_control_request_t* r
     if(request->bRequest==TUSB_REQ_GET_INTERFACE)return tud_control_xfer(rhport,request,&alternate,1);
     if(request->bRequest==TUSB_REQ_SET_INTERFACE&&request->wValue<=1) {
       active=false;
+      usbd_edpt_close(rhport,endpoint);
       alternate=request->wValue;clearRing();
       if(alternate) {
         packets=underruns=overruns=transmitErrors=0;active=true;submit(rhport);
@@ -130,6 +136,23 @@ static void diagnostics(){
   const uint8_t* device=tud_descriptor_device_cb();Serial.print("USB_DEVICE ");for(int i=0;i<18;++i)Serial.printf("%02x",device[i]);Serial.println();
   const uint8_t* config=tud_descriptor_configuration_cb(0);size_t size=config[2]|(config[3]<<8);Serial.print("USB_CONFIG ");for(size_t i=0;i<size;++i)Serial.printf("%02x",config[i]);Serial.println();
 }
+}
+
+extern "C" void dcd_edpt_close(uint8_t,uint8_t address) {
+  if(address!=UsbMicrophone::endpoint)return;
+  const uint8_t number=address&0x0f;
+  auto& ep=USB0.in_ep_reg[number];
+  USB0.dtknqr4_fifoemptymsk&=~(1UL<<number);
+  if(ep.diepctl&USB_D_EPENA1_M) {
+    ep.diepctl|=USB_DI_SNAK1_M|USB_D_EPDIS1_M;
+    const uint32_t start=micros();
+    while((ep.diepctl&USB_D_EPENA1_M)&&micros()-start<2000){}
+  }
+  const uint32_t fifo=(ep.diepctl&USB_D_TXFNUM1_M)>>USB_D_TXFNUM1_S;
+  USB0.grstctl=(USB0.grstctl&~USB_TXFNUM_M)|(fifo<<USB_TXFNUM_S)|USB_TXFFLSH_M;
+  const uint32_t start=micros();
+  while((USB0.grstctl&USB_TXFFLSH_M)&&micros()-start<2000){}
+  ep.dieptsiz=0;ep.diepint=0xffffffff;
 }
 
 extern "C" const usbd_class_driver_t* usbd_app_driver_get_cb(uint8_t* count) {

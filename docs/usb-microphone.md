@@ -1,6 +1,6 @@
 # 标准 USB 麦克风试验
 
-`mic-usb-app` 是原有自定义 CDC PCM 固件。`mic-usb-uac` 在同一 USB 设备上增加标准 UAC1 音频输入，保留 CDC 接口供 EchoCraft App 使用。两个环境都保留固定三倍增益及默认板端降噪。
+`mic-usb-app` 是原有自定义 CDC PCM 固件。`mic-usb-uac` 在同一 USB 设备上增加标准 UAC1 音频输入，保留 CDC 接口供 EchoCraft App 使用。两个环境当前均使用固定五倍增益及默认板端降噪；下列 Windows 初次采集是在此前三倍增益版本下完成。
 
 系统设备名为 **EchoCraft 智能收音系统**，USB 产品字符串含 EchoCraft 前缀供现有 App 识别。标准音频格式为 32 kHz、16-bit、单声道，异步等时 IN。USB 串号目前是原型固定标识，不适用于多台设备同时部署。
 
@@ -11,6 +11,12 @@
 - 同一单线接法下，旧 App 使用的 CDC PCM 通道 100 包序号与 CRC 校验通过，无包内溢出标志。
 - 用户反馈手机自带相机仍录出无声视频；Android 系统相机兼容性**尚未通过**。不能把 Windows 通过当成 Android 已通过。
 - 用户反馈 COM 连电脑且 USB 连手机时影响 App 录制，移除 COM 后可录。原因尚未定位；手机测试只使用 USB 单线，避免混入串口自动复位及双电源因素。
+
+## 红米读取失败排查
+
+Redmi Note 11 Pro 的日志确认系统已登记 USB 音频输入（hasInput=true），系统相机尝试使用 USB 路由；USB HAL 能识别实际 32 kHz 单声道并准备转换为相机所需的 48 kHz 双声道。随后 USB 读取线程反复报告 `proxy_read fail`，相机停止报 `MediaRecorder stop failed: -1007`。这不能归因于音量过小，也不应直接归因于权限。
+
+发现旧 DCD 没有实现单端点关闭：主机停止轮询后，待处理的等时传输可能保持 busy。新增仅针对本麦克风 IN 端点的关闭实现，停止端点、清理其 FIFO，再由 TinyUSB 清除 busy/claimed 状态，供下一次 SET_INTERFACE 启动。修复已编译并烧录；红米相机的重复开始/停止验证仍待反馈。
 
 ## 测试接法
 

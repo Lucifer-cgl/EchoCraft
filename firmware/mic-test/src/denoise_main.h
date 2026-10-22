@@ -27,7 +27,7 @@ static float inputFrame[256],outputFrame[256];
 static int16_t pcmFrame[256];
 static bool bypass=false;
 // Applied after DSP in both raw and denoised output; the Android app stays unchanged.
-static constexpr float outputGain=3.0f;
+static constexpr float outputGain=5.0f;
 static uint32_t remaining=0,maxDspUs=0,overflows=0,readErrors=0;
 static uint32_t capturedMaxUs=0,capturedOverflowStart=0,capturedErrorStart=0;
 
@@ -88,13 +88,13 @@ void setup() {
 #ifdef ECHOCRAFT_UAC
   if(!UsbMicrophone::begin()){Serial.println("UAC_INIT_ERROR");while(true)delay(1000);}
 #endif
-  USB.productName("EchoCraft Mic");USB.manufacturerName("EchoCraft");USB.firmwareVersion(0x0102);
+  USB.productName("EchoCraft Mic");USB.manufacturerName("EchoCraft");USB.firmwareVersion(0x0103);
 #ifdef ECHOCRAFT_UAC
-  USB.firmwareVersion(0x0200);
+  USB.firmwareVersion(0x0201);
 #endif
   appUsb.enableReboot(false);appUsb.setRxBufferSize(1024);appUsb.setTxTimeoutMs(25);appUsb.begin();USB.begin();
 #endif
-  Serial.println("EchoCraft realtime-denoise v1.2; output_gain=3.0; hum=125,250Hz/6dB; 32k mono; R=record, B=bypass, D=denoise, T=replay");
+  Serial.println("EchoCraft realtime-denoise v1.3; output_gain=5.0; hum=125,250Hz/6dB; 32k mono; R=record, B=bypass, D=denoise, T=replay");
 #ifdef ECHOCRAFT_UAC
   Serial.println("UAC1+CDC: EchoCraft Smart Audio; U=USB audio diagnostics");
 #endif
@@ -160,7 +160,7 @@ void loop() {
     remaining-=count;
     if(!remaining) {
       drainEvents();Serial.print("\nEND\n");
-      Serial.printf("ECDSP {\"firmware\":\"realtime-denoise-v1.2\",\"output_gain\":3.0,\"mode\":\"%s\",\"max_dsp_us\":%lu,\"hop_budget_us\":8000,\"overflows\":%lu,\"read_errors\":%lu,\"algorithm_delay_samples\":256}\n",
+      Serial.printf("ECDSP {\"firmware\":\"realtime-denoise-v1.3\",\"output_gain\":5.0,\"mode\":\"%s\",\"max_dsp_us\":%lu,\"hop_budget_us\":8000,\"overflows\":%lu,\"read_errors\":%lu,\"algorithm_delay_samples\":256}\n",
         bypass?"bypass":"denoise",(unsigned long)capturedMaxUs,
         (unsigned long)(overflows-capturedOverflowStart),(unsigned long)(readErrors-capturedErrorStart));
     }
