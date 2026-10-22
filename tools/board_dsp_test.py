@@ -43,9 +43,12 @@ def replay(connection, pcm, bypass):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--port',default='COM9')
+    parser.add_argument('--output-gain',type=float,default=3.0,help='Firmware output gain (use 1 for older firmware)')
     parser.add_argument('--case',action='store_true')
     parser.add_argument('--case-seconds',type=float,help='Optional excerpt length for a quick board regression')
     args=parser.parse_args()
+    if not np.isfinite(args.output_gain) or args.output_gain<=0:
+        parser.error('--output-gain must be positive and finite')
     root=Path(__file__).resolve().parents[1]
     folder=root/'recordings'/('board-dsp-'+datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
     folder.mkdir(parents=True)
@@ -60,14 +63,15 @@ def main():
         time.sleep(2)
         bypass,bypass_us=replay(connection,pcm,True)
         result,process_us=replay(connection,pcm,False)
-        max_error=int(np.max(abs(bypass.astype(int)-pcm.astype(int))))
+        expected=np.clip(np.rint(pcm.astype(float)*args.output_gain),-32768,32767).astype(int)
+        max_error=int(np.max(abs(bypass.astype(int)-expected)))
         rms=lambda a:float(np.sqrt(np.mean(a.astype(float)**2)))
-        noise_change=20*np.log10(rms(result[fs//2:fs])/rms(pcm[fs//2:fs]))
+        noise_change=20*np.log10(rms(result[fs//2:fs])/rms(pcm[fs//2:fs])/args.output_gain)
         def tone(a):
             return abs(np.mean(a[2*fs:]*np.exp(-2j*np.pi*1000*t[2*fs:])))
-        tone_change=20*np.log10(tone(result)/tone(pcm))
+        tone_change=20*np.log10(tone(result)/tone(pcm)/args.output_gain)
         report=dict(bypass_max_error_lsb=max_error,max_bypass_us=bypass_us,max_dsp_us=process_us,
-            hop_budget_us=8000,noise_change_db=float(noise_change),tone_change_db=float(tone_change))
+            output_gain=args.output_gain,hop_budget_us=8000,noise_change_db=float(noise_change),tone_change_db=float(tone_change))
         (folder/'synthetic-report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
         print(json.dumps(report,indent=2),flush=True)
         assert max_error<=3,'Bypass reconstruction/transport failed'

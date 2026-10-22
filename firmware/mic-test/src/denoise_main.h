@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <driver/i2s.h>
 #include "realtime_denoiser.h"
+#include "hum_reducer.h"
 #ifdef ECHOCRAFT_NATIVE_USB
 #include <USB.h>
 static USBCDC appUsb;
@@ -16,11 +17,14 @@ static uint32_t crc32Audio(const uint8_t* bytes,size_t size) {
 #endif
 
 static RealtimeDenoiser denoiser;
+static HumReducer humReducer;
 static QueueHandle_t eventQueue=nullptr;
 static int32_t rawSamples[256];
 static float inputFrame[256],outputFrame[256];
 static int16_t pcmFrame[256];
 static bool bypass=false;
+// Applied after DSP in both raw and denoised output; the Android app stays unchanged.
+static constexpr float outputGain=3.0f;
 static uint32_t remaining=0,maxDspUs=0,overflows=0,readErrors=0;
 static uint32_t capturedMaxUs=0,capturedOverflowStart=0,capturedErrorStart=0;
 
@@ -32,11 +36,12 @@ static void drainEvents() {
 static void processFrame() {
   uint32_t begin=micros();
   denoiser.process(inputFrame,outputFrame,bypass);
+  for(int i=0;i<256;++i)outputFrame[i]=humReducer.process(outputFrame[i],!bypass);
   uint32_t elapsed=micros()-begin;
   maxDspUs=std::max(maxDspUs,elapsed);
   if(remaining) capturedMaxUs=std::max(capturedMaxUs,elapsed);
   for(int i=0;i<256;++i)
-    pcmFrame[i]=int16_t(std::max(-32768.f,std::min(32767.f,std::round(outputFrame[i]*32768))));
+    pcmFrame[i]=int16_t(std::max(-32768.f,std::min(32767.f,std::round(outputFrame[i]*outputGain*32768))));
 }
 
 // Test-only digital replay exercises THIS board's algorithm against a known input.
@@ -47,7 +52,7 @@ static void replay() {
   if(Serial.readBytes(reinterpret_cast<char*>(&frames),4)!=4 || frames>32000*180 || frames%256) {
     Serial.println("REPLAY_ERROR");i2s_start(I2S_NUM_0);return;
   }
-  denoiser.reset();maxDspUs=0;
+  denoiser.reset();humReducer.reset();maxDspUs=0;
   Serial.print("ECREPLAY1\n");
   for(uint32_t offset=0;offset<frames;offset+=256) {
     if(Serial.readBytes(reinterpret_cast<char*>(pcmFrame),512)!=512) {
@@ -58,7 +63,7 @@ static void replay() {
     Serial.write(reinterpret_cast<uint8_t*>(pcmFrame),512);
   }
   Serial.printf("\nREPLAY_END max_dsp_us=%lu\n",(unsigned long)maxDspUs);
-  denoiser.reset();i2s_start(I2S_NUM_0);drainEvents();
+  denoiser.reset();humReducer.reset();i2s_start(I2S_NUM_0);drainEvents();
 }
 
 void setup() {
@@ -75,12 +80,12 @@ void setup() {
   pins.data_out_num=I2S_PIN_NO_CHANGE;pins.data_in_num=15;
   if(result==ESP_OK) result=i2s_set_pin(I2S_NUM_0,&pins);
   if(result!=ESP_OK) {Serial.printf("INIT_ERROR %s\n",esp_err_to_name(result));while(true)delay(1000);}
-  denoiser.reset();
+  denoiser.reset();humReducer.reset();
 #ifdef ECHOCRAFT_NATIVE_USB
-  USB.productName("EchoCraft Mic");USB.manufacturerName("EchoCraft");USB.firmwareVersion(0x0101);
+  USB.productName("EchoCraft Mic");USB.manufacturerName("EchoCraft");USB.firmwareVersion(0x0102);
   appUsb.enableReboot(false);appUsb.setRxBufferSize(1024);appUsb.setTxTimeoutMs(25);appUsb.begin();USB.begin();
 #endif
-  Serial.println("EchoCraft realtime-denoise v1; 32k mono; R=record, B=bypass, D=denoise, T=replay");
+  Serial.println("EchoCraft realtime-denoise v1.2; output_gain=3.0; hum=125,250Hz/6dB; 32k mono; R=record, B=bypass, D=denoise, T=replay");
 }
 
 void loop() {
@@ -137,7 +142,7 @@ void loop() {
     remaining-=count;
     if(!remaining) {
       drainEvents();Serial.print("\nEND\n");
-      Serial.printf("ECDSP {\"firmware\":\"realtime-denoise-v1\",\"mode\":\"%s\",\"max_dsp_us\":%lu,\"hop_budget_us\":8000,\"overflows\":%lu,\"read_errors\":%lu,\"algorithm_delay_samples\":256}\n",
+      Serial.printf("ECDSP {\"firmware\":\"realtime-denoise-v1.2\",\"output_gain\":3.0,\"mode\":\"%s\",\"max_dsp_us\":%lu,\"hop_budget_us\":8000,\"overflows\":%lu,\"read_errors\":%lu,\"algorithm_delay_samples\":256}\n",
         bypass?"bypass":"denoise",(unsigned long)capturedMaxUs,
         (unsigned long)(overflows-capturedOverflowStart),(unsigned long)(readErrors-capturedErrorStart));
     }
