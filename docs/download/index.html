@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>下载 EchoCraft</title>
+<style>
+:root{font:16px/1.7 system-ui,sans-serif;color:#19352e;background:#f5f4ee}body{max-width:680px;margin:8vh auto;padding:24px}article{padding:32px;border-radius:24px;background:white}h1{font-size:36px;margin:0}small,p{color:#5e7269}a,button{display:inline-block;padding:12px 20px;margin:6px 8px 6px 0;border-radius:12px;border:0;background:#147c70;color:white;text-decoration:none;font:inherit;cursor:pointer}.secondary{background:#e7eee8;color:#19352e}code{overflow-wrap:anywhere;font-size:12px}footer{margin-top:24px}#status{min-height:3em}button:disabled{opacity:.6}
+</style>
+<article><small>EchoCraft · Android</small><h1>记录声音，保留现场。</h1>
+<p>外置收音、实时降噪、视频拍摄与作品管理。</p>
+<p id="device"></p><p id="status" role="status">正在检测 GitHub 连接…</p>
+<button id="automatic" disabled>自动选择下载线路</button>
+<div><a id="direct" class="secondary">GitHub 原站下载</a><a id="mirror" class="secondary">加速下载</a></div>
+<small>优先根据 GitHub 实际连通性选择线路。网页无法直接读取代理开关或精确判断所在地；中文环境与上海时区只作为提示。检测受浏览器限制时，可手动切换。加速服务由第三方 GH-Proxy 提供，服务可用性不保证。</small>
+<p id="version"></p><p>APK 的 SHA256：<br><code id="checksum"></code></p>
+<p>当前是开发预览版，仅支持 Android ARM64；iPhone 无法安装。允许安装来自浏览器的应用后，打开 APK 安装。桌面下载后可将 APK 传到手机安装。</p>
+</article><footer><a class="secondary" href="https://github.com/Lucifer-cgl/EchoCraft">源码与使用说明</a><small>无需账号，无设备定位权限。</small></footer>
+<script type="module" src="app.js"></script>
+</html>

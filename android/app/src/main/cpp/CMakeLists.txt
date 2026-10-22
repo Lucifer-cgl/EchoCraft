@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(echocraft)
+add_library(echocraft SHARED audio_jni.cpp)
+target_compile_features(echocraft PRIVATE cxx_std_17)
+target_include_directories(echocraft PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../firmware/mic-test/src)
