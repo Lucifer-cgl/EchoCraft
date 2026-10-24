@@ -26,8 +26,8 @@ static int32_t rawSamples[256];
 static float inputFrame[256],outputFrame[256];
 static int16_t pcmFrame[256];
 static bool bypass=false;
-// Applied after DSP in both raw and denoised output; the Android app stays unchanged.
-static constexpr float outputGain=5.0f;
+// Unity gain in both bypass and denoised output: no extra amplification or AGC.
+static constexpr float outputGain=1.0f;
 static uint32_t remaining=0,maxDspUs=0,overflows=0,readErrors=0;
 static uint32_t capturedMaxUs=0,capturedOverflowStart=0,capturedErrorStart=0;
 
@@ -88,13 +88,13 @@ void setup() {
 #ifdef ECHOCRAFT_UAC
   if(!UsbMicrophone::begin()){Serial.println("UAC_INIT_ERROR");while(true)delay(1000);}
 #endif
-  USB.productName("EchoCraft Mic");USB.manufacturerName("EchoCraft");USB.firmwareVersion(0x0103);
+  USB.productName("EchoCraft Mic");USB.manufacturerName("EchoCraft");USB.firmwareVersion(0x0105);
 #ifdef ECHOCRAFT_UAC
   USB.firmwareVersion(0x0201);
 #endif
   appUsb.enableReboot(false);appUsb.setRxBufferSize(1024);appUsb.setTxTimeoutMs(25);appUsb.begin();USB.begin();
 #endif
-  Serial.println("EchoCraft realtime-denoise v1.3; output_gain=5.0; hum=125,250Hz/6dB; 32k mono; R=record, B=bypass, D=denoise, T=replay");
+  Serial.println("EchoCraft realtime-denoise v1.5; output_gain=1.0; hum=125,250Hz/6dB; 32k mono; R=record, B=bypass, D=denoise, T=replay");
 #ifdef ECHOCRAFT_UAC
   Serial.println("UAC1+CDC: EchoCraft Smart Audio; U=USB audio diagnostics");
 #endif
@@ -107,7 +107,7 @@ void loop() {
     if(command=='S')appStreaming=false;
     if(command=='D')bypass=false;
     if(command=='B')bypass=true;
-    if(command=='G') {uartStreaming=false;appSequence=appSampleIndex=0;drainEvents();appOverflowStart=overflows;appStreaming=true;}
+    if(command=='G') {denoiser.reset();humReducer.reset();uartStreaming=false;appSequence=appSampleIndex=0;drainEvents();appOverflowStart=overflows;appStreaming=true;}
   }
   if(!appUsb)appStreaming=false;
 #endif
@@ -119,7 +119,7 @@ void loop() {
     if(command=='U')UsbMicrophone::diagnostics();
 #endif
 #ifdef ECHOCRAFT_NATIVE_USB
-    if(command=='P') {appStreaming=false;appSequence=appSampleIndex=0;drainEvents();appOverflowStart=overflows;uartStreaming=true;}
+    if(command=='P') {denoiser.reset();humReducer.reset();appStreaming=false;appSequence=appSampleIndex=0;drainEvents();appOverflowStart=overflows;uartStreaming=true;}
     if(command=='Q') uartStreaming=false;
     if(command=='R'||command=='T')uartStreaming=false;
 #endif
@@ -160,7 +160,7 @@ void loop() {
     remaining-=count;
     if(!remaining) {
       drainEvents();Serial.print("\nEND\n");
-      Serial.printf("ECDSP {\"firmware\":\"realtime-denoise-v1.3\",\"output_gain\":5.0,\"mode\":\"%s\",\"max_dsp_us\":%lu,\"hop_budget_us\":8000,\"overflows\":%lu,\"read_errors\":%lu,\"algorithm_delay_samples\":256}\n",
+      Serial.printf("ECDSP {\"firmware\":\"realtime-denoise-v1.5\",\"output_gain\":1.0,\"mode\":\"%s\",\"max_dsp_us\":%lu,\"hop_budget_us\":8000,\"overflows\":%lu,\"read_errors\":%lu,\"algorithm_delay_samples\":256}\n",
         bypass?"bypass":"denoise",(unsigned long)capturedMaxUs,
         (unsigned long)(overflows-capturedOverflowStart),(unsigned long)(readErrors-capturedErrorStart));
     }

@@ -39,3 +39,8 @@ tests/audio/
 
 downloads/
 *.part
+android/.deps/
+
+# Personal media and generated video outputs
+/素材/
+/outputs/

@@ -12,6 +12,8 @@ import org.json.JSONObject;
 final class CaptureEngine {
     interface Listener {void started(String input);void level(float peak);void finished(File folder,JSONObject metadata,String warning);void failed(String message);}
     final Context context;final CameraController camera;final File folder;final Listener listener;
+    final boolean audioOnly;
+    Mp3Encoder mp3;File pendingMp3;
     final AtomicBoolean stopping=new AtomicBoolean();
     final CountDownLatch initialized=new CountDownLatch(1);
     volatile boolean running=true,denoise;
@@ -21,11 +23,16 @@ final class CaptureEngine {
     Thread audioThread,videoThread;
     volatile long epochUs=0;volatile long audioEndUs=0;int startSwitches=0;
     volatile long audioSamples=0;volatile String audioStage="尚未开始";
-    CaptureEngine(Context c,CameraController camera,File folder,boolean denoise,Listener l){context=c;this.camera=camera;this.folder=folder;this.denoise=denoise;listener=l;}
+    CaptureEngine(Context c,CameraController camera,File folder,boolean denoise,Listener l){this(c,camera,folder,denoise,false,l);}
+    CaptureEngine(Context c,CameraController camera,File folder,boolean denoise,boolean audioOnly,Listener l){context=c;this.camera=camera;this.folder=folder;this.denoise=denoise;this.audioOnly=audioOnly;listener=l;}
     void start(boolean debugInternal) {
         new Thread(()->{
             try {
                 input=AudioInputs.create(context,debugInternal);
+                if(audioOnly){
+                    pendingMp3=new File(folder,"pending-original.mp3");mp3=new Mp3Encoder(pendingMp3,input.rate(),1);
+                    audioThread=new Thread(this::captureAudio,"EchoCraft-mp3");audioThread.start();return;
+                }
                 MediaFormat format=MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC,camera.size.getWidth(),camera.size.getHeight());
                 format.setInteger(MediaFormat.KEY_COLOR_FORMAT,MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
                 format.setInteger(MediaFormat.KEY_BIT_RATE,4000000);format.setInteger(MediaFormat.KEY_FRAME_RATE,30);
@@ -51,17 +58,17 @@ final class CaptureEngine {
             while(running) {
                 if(previous!=denoise){previous=denoise;input.setDenoise(previous);}
                 int count=input.read(buffer);if(count<=0)break;
-                if(epochUs==0){epochUs=input.firstSampleUs();android.os.Bundle request=new android.os.Bundle();request.putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME,0);video.setParameters(request);}
+                if(epochUs==0){epochUs=input.firstSampleUs();if(video!=null){android.os.Bundle request=new android.os.Bundle();request.putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME,0);video.setParameters(request);}}
                 if(!notified){notified=true;listener.started(input.name());}audioStage="接收并编码音频";
                 long pts=input.firstSampleUs()-epochUs;
                 if(pts<0)continue;
                 if(!input.boardDsp())dsp.apply(buffer,count,denoise,1);
                 float peak=0;for(int i=0;i<count;i++)peak=Math.max(peak,Math.abs((int)buffer[i])/32768f);
                 listener.level(peak);
-                audio.put(buffer,count,pts);audioSamples+=count;audioEndUs=pts+count*1000000L/input.rate();
+                if(audioOnly)mp3.put(buffer,count);else audio.put(buffer,count,pts);audioSamples+=count;audioEndUs=pts+count*1000000L/input.rate();
             }
         }catch(Throwable e){if(running){warning=e.getMessage();stop();}}
-        finally{if(input!=null)input.close();try{audio.finish(audioEndUs);}catch(Throwable e){failure=e;}}
+        finally{if(input!=null)input.close();try{if(audio!=null)audio.finish(audioEndUs);if(mp3!=null)mp3.close();}catch(Throwable e){failure=e;}}
     }
     void drainVideo() {
         try {
@@ -93,35 +100,48 @@ final class CaptureEngine {
         new Thread(()->{
             try {
                 if(!initialized.await(8,java.util.concurrent.TimeUnit.SECONDS))throw new IOException("录像初始化超时");
-                camera.stopRecording();
+                if(camera!=null&&!audioOnly)camera.stopRecording();
                 if(video!=null)video.signalEndOfInputStream();
                 if(audioThread!=null && audioThread!=Thread.currentThread())audioThread.join(6000);
                 if(videoThread!=null && videoThread!=Thread.currentThread())videoThread.join(8000);
                 if((audioThread!=null&&audioThread.isAlive())||(videoThread!=null&&videoThread.isAlive()))throw new IOException("录像停止超时");
                 if(failure!=null)throw new IOException(failure.getMessage(),failure);
-                if(mux==null||mux.videoPackets==0||mux.audioPackets==0)throw new IOException(warning.isEmpty()?"没有收到完整音视频":warning);
-                mux.close();
+                if(audioOnly){
+                    if(audioSamples==0||pendingMp3==null||pendingMp3.length()==0)throw new IOException(warning.isEmpty()?"没有收到有效音频":warning);
+                    if(!pendingMp3.renameTo(new File(folder,"original.mp3")))throw new IOException("MP3 保存失败");
+                }else{
+                    if(mux==null||mux.videoPackets==0||mux.audioPackets==0)throw new IOException(warning.isEmpty()?"没有收到完整音视频":warning);
+                    mux.close();
+                }
                 JSONObject metadata=new JSONObject();
                 metadata.put("createdAt",System.currentTimeMillis());metadata.put("input",input.name());
                 metadata.put("durationMs",audioEndUs/1000);metadata.put("sampleRate",input.rate());
                 metadata.put("denoiseAtEnd",denoise);metadata.put("liveSwitches",startSwitches);
                 metadata.put("interruption",warning);metadata.put("app","EchoCraft");
+                metadata.put("type",audioOnly?"audio":"video");metadata.put("format",audioOnly?"MP3":"MP4");
+                if(mux!=null){
                 metadata.put("videoFirstUs",mux.first.get("video"));metadata.put("videoLastUs",mux.last.get("video"));
                 metadata.put("audioFirstUs",mux.first.get("audio"));metadata.put("audioLastUs",mux.last.get("audio"));
                 metadata.put("timestampCorrections",mux.corrections);
+                }
+                releaseResources();
                 listener.finished(folder,metadata,warning);
             }catch(Throwable e){
                 String details=e.getMessage()+"\n音频阶段："+audioStage+"\n音频样本："+audioSamples+
                     "\n视频包："+(mux==null?0:mux.videoPackets)+"，音频包："+(mux==null?0:mux.audioPackets)+
                     (input==null?"":"\n"+input.diagnostics());
-                listener.failed(details);new File(folder,"original.mp4").delete();}
-            finally {
-                try{if(input!=null)input.close();}catch(Exception ignored){}
-                try{if(audio!=null)audio.close();}catch(Exception ignored){}
-                try{if(video!=null){video.stop();video.release();}}catch(Exception ignored){}
-                try{if(mux!=null)mux.close();}catch(Exception ignored){}
-                if(surface!=null)surface.release();
-            }
+                releaseResources();
+                listener.failed(details);new File(folder,"original.mp4").delete();new File(folder,"original.mp3").delete();}
+            finally { releaseResources(); }
         },"EchoCraft-stop").start();
+    }
+    synchronized void releaseResources() {
+        try{if(input!=null)input.close();}catch(Exception ignored){}
+        try{if(audio!=null)audio.close();}catch(Exception ignored){}audio=null;
+        try{if(mp3!=null)mp3.close();}catch(Exception ignored){}mp3=null;
+        if(pendingMp3!=null)pendingMp3.delete();
+        try{if(video!=null){video.stop();video.release();}}catch(Exception ignored){}video=null;
+        try{if(mux!=null)mux.close();}catch(Exception ignored){}mux=null;
+        if(surface!=null){surface.release();surface=null;}
     }
 }

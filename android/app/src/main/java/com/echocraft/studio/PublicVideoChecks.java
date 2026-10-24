@@ -7,6 +7,29 @@ import org.json.JSONObject;
 
 /** Explicit debug-only check: creates and deletes its own isolated clips. */
 final class PublicVideoChecks {
+    static JSONObject runAudio(Context context,File source) throws Exception {
+        ClipStore store=new ClipStore(context);File folder=store.newSession();JSONObject result=new JSONObject();
+        try {
+            Files.copy(source.toPath(),new File(folder,"original.mp3").toPath());store.commit(folder,new JSONObject().put("type","audio"));
+            PublicVideos.publish(context,new File(folder,"original.mp3"));
+            folder=store.rename(folder,"MP3-check-"+System.currentTimeMillis());
+            File record=new File(folder,"original.mp3.public.json");android.net.Uri uri=PublicVideos.read(record);
+            try(android.database.Cursor cursor=context.getContentResolver().query(uri,new String[]{android.provider.MediaStore.Audio.Media.MIME_TYPE,android.provider.MediaStore.Audio.Media.RELATIVE_PATH},null,null,null)){
+                if(cursor==null||!cursor.moveToFirst()||!"audio/mpeg".equals(cursor.getString(0))||!cursor.getString(1).startsWith("Music/EchoCraft/"+folder.getName()))throw new IOException("MP3 public metadata mismatch");
+            }
+            result.put("publicMp3InMusicWithRenamedFolder",true);
+            context.getContentResolver().delete(uri,null,null);store.reconcile();
+            if(folder.exists())throw new IOException("MP3 gallery deletion did not remove private clip");
+            result.put("externalDeletionRemovesMp3LibraryRecord",true);
+            folder=store.newSession();Files.copy(source.toPath(),new File(folder,"original.mp3").toPath());store.commit(folder,new JSONObject().put("type","audio"));
+            PublicVideos.publish(context,new File(folder,"original.mp3"));record=new File(folder,"original.mp3.public.json");
+            uri=PublicVideos.read(record);store.delete(folder);
+            try(android.database.Cursor cursor=context.getContentResolver().query(uri,new String[]{android.provider.MediaStore.Audio.Media._ID},null,null,null)){
+                if(cursor!=null&&cursor.moveToFirst())throw new IOException("MP3 remained after deletion");
+            }
+            result.put("appDeletionRemovesMp3",true);return result;
+        }finally{if(folder.exists())store.delete(folder);}
+    }
     static JSONObject run(Context context) throws Exception {
         ClipStore store=new ClipStore(context);File folder=store.newSession();
         JSONObject result=new JSONObject();

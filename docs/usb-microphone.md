@@ -1,6 +1,6 @@
 # 标准 USB 麦克风试验
 
-`mic-usb-app` 是原有自定义 CDC PCM 固件。`mic-usb-uac` 在同一 USB 设备上增加标准 UAC1 音频输入，保留 CDC 接口供 EchoCraft App 使用。两个环境当前均使用固定五倍增益及默认板端降噪；下列 Windows 初次采集是在此前三倍增益版本下完成。
+`mic-usb-app` 是原有自定义 CDC PCM 固件。`mic-usb-uac` 在同一 USB 设备上增加标准 UAC1 音频输入，保留 CDC 接口供 EchoCraft App 使用。两个环境当前均使用一倍增益（不额外放大、无自动增益）及默认板端降噪；下列 Windows 初次采集是在此前三倍增益版本下完成。
 
 系统设备名为 **EchoCraft 智能收音系统**，USB 产品字符串含 EchoCraft 前缀供现有 App 识别。标准音频格式为 32 kHz、16-bit、单声道，异步等时 IN。USB 串号目前是原型固定标识，不适用于多台设备同时部署。
 

@@ -1,0 +1,4 @@
+<resources>
+    <item name="record_video_mode" type="id"/>
+    <item name="record_audio_mode" type="id"/>
+</resources>

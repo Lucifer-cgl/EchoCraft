@@ -19,10 +19,11 @@ final class PublicVideos {
         }
         ContentValues values=new ContentValues();
         values.put(MediaStore.Video.Media.DISPLAY_NAME,"EchoCraft-"+video.getParentFile().getName()+"-"+video.getName());
-        values.put(MediaStore.Video.Media.MIME_TYPE,"video/mp4");
-        values.put(MediaStore.Video.Media.RELATIVE_PATH,"Movies/EchoCraft/"+video.getParentFile().getName());
+        boolean audio=video.getName().endsWith(".mp3");
+        values.put(MediaStore.Video.Media.MIME_TYPE,audio?"audio/mpeg":"video/mp4");
+        values.put(MediaStore.Video.Media.RELATIVE_PATH,(audio?"Music":"Movies")+"/EchoCraft/"+video.getParentFile().getName());
         values.put(MediaStore.Video.Media.IS_PENDING,1);
-        Uri uri=resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI,values);
+        Uri uri=resolver.insert(audio?MediaStore.Audio.Media.EXTERNAL_CONTENT_URI:MediaStore.Video.Media.EXTERNAL_CONTENT_URI,values);
         if(uri==null)throw new IOException("无法创建公共视频");
         try {
             try(InputStream in=new FileInputStream(video);OutputStream out=resolver.openOutputStream(uri)) {
@@ -51,12 +52,15 @@ final class PublicVideos {
     }
     static void cleanupFolder(String name) {
         // Only remove this exact empty directory; never recursively remove public storage.
-        File folder=new File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES),"EchoCraft/"+name);
-        String[] children=folder.list();if(children!=null&&children.length==0)folder.delete();
+        for(String kind:new String[]{android.os.Environment.DIRECTORY_MOVIES,android.os.Environment.DIRECTORY_MUSIC}){
+            File folder=new File(android.os.Environment.getExternalStoragePublicDirectory(kind),"EchoCraft/"+name);
+            String[] children=folder.list();if(children!=null&&children.length==0)folder.delete();
+        }
     }
     static void move(Context context,File record,String folder) throws Exception {
         if(Build.VERSION.SDK_INT<29)return;
-        ContentValues values=new ContentValues();values.put(MediaStore.Video.Media.RELATIVE_PATH,"Movies/EchoCraft/"+folder);
+        String kind=record.getName().endsWith(".mp3.public.json")?"Music":"Movies";
+        ContentValues values=new ContentValues();values.put(MediaStore.Video.Media.RELATIVE_PATH,kind+"/EchoCraft/"+folder);
         if(context.getContentResolver().update(read(record),values,null,null)!=1)throw new IOException("公共视频已删除，请刷新作品库");
     }
 }

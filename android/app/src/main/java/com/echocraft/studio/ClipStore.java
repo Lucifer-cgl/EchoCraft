@@ -34,7 +34,7 @@ final class ClipStore {
         result.sort((a,b)->b.getName().compareTo(a.getName()));return result;
     }
     List<File> versions(File folder) {
-        File[] files=folder.listFiles(f->f.getName().endsWith(".mp4") && !f.getName().startsWith("pending-"));
+        File[] files=folder.listFiles(f->(f.getName().endsWith(".mp4")||f.getName().endsWith(".mp3")) && !f.getName().startsWith("pending-"));
         List<File> result=new ArrayList<>();if(files!=null)result.addAll(Arrays.asList(files));
         result.sort(Comparator.comparing(File::getName));return result;
     }
@@ -62,9 +62,11 @@ final class ClipStore {
             }
             if(versions(folder).isEmpty())delete(folder);
         }
-        File publicRoot=new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),"EchoCraft");
-        File[] emptyCandidates=publicRoot.listFiles(File::isDirectory);
-        if(emptyCandidates!=null)for(File directory:emptyCandidates)PublicVideos.cleanupFolder(directory.getName());
+        for(String kind:new String[]{Environment.DIRECTORY_MOVIES,Environment.DIRECTORY_MUSIC}){
+            File publicRoot=new File(Environment.getExternalStoragePublicDirectory(kind),"EchoCraft");
+            File[] emptyCandidates=publicRoot.listFiles(File::isDirectory);
+            if(emptyCandidates!=null)for(File directory:emptyCandidates)PublicVideos.cleanupFolder(directory.getName());
+        }
     }
     synchronized File rename(File folder,String requested) throws Exception {
         String name=requested.trim();

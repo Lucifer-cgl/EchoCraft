@@ -25,6 +25,6 @@ try {
   button.onclick=()=>{location.href=choice.route==='direct'?direct:mirror;};
 } catch(error) {
   element('status').textContent=`${error.message}，请从 GitHub Release 页面下载。`;
-  element('direct').href='https://github.com/Lucifer-cgl/EchoCraft/releases/tag/v0.1.0';
+  element('direct').href='https://github.com/Lucifer-cgl/EchoCraft/releases/latest';
   element('mirror').hidden=true;
 }

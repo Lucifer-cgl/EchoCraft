@@ -43,7 +43,7 @@ def replay(connection, pcm, bypass):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--port',default='COM9')
-    parser.add_argument('--output-gain',type=float,default=5.0,help='Firmware output gain (use 1 or 3 for older firmware)')
+    parser.add_argument('--output-gain',type=float,default=1.0,help='Firmware output gain (use 3 or 5 for older amplified firmware)')
     parser.add_argument('--case',action='store_true')
     parser.add_argument('--case-seconds',type=float,help='Optional excerpt length for a quick board regression')
     args=parser.parse_args()

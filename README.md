@@ -1,13 +1,14 @@
 # EchoCraft
 
-软硬件协同的模块化收音系统：硬件负责近距离采集与轻量处理，Android 软件负责视频拍摄、声音精修和作品管理。
+软硬件协同的模块化收音系统：硬件负责近距离采集与轻量处理，Android 软件负责视频拍摄、纯录音 MP3、声音精修和作品管理。
 
-[下载 Android APK](https://lucifer-cgl.github.io/EchoCraft/download/) · [GitHub Release](https://github.com/Lucifer-cgl/EchoCraft/releases/tag/v0.1.0) · [加速下载 APK](https://gh-proxy.com/https://github.com/Lucifer-cgl/EchoCraft/releases/download/v0.1.0/EchoCraft-debug.apk)
+[下载 Android APK](https://lucifer-cgl.github.io/EchoCraft/download/) · [GitHub Release](https://github.com/Lucifer-cgl/EchoCraft/releases/tag/v0.2.0) · [加速下载 APK](https://gh-proxy.com/https://github.com/Lucifer-cgl/EchoCraft/releases/download/v0.2.0/EchoCraft-debug.apk)
 
 ## 当前功能
 
 - ESP32-S3 + INMP441，32 kHz 单声道 PCM，轻量实时频谱降噪与原声切换。
 - Android 相机画面与外置硬件声音合成为 MP4；正常录制由用户点击开始、结束，不以手机麦克风静默代录。
+- 新增纯录音 MP3 模式（32 kHz 单声道、128 kbps），不打开相机；默认实时降噪，支持历史录音降噪及音量编辑。MP3 保存到 `Music/EchoCraft/作品名称/`，约 0.96 MB/分钟。
 - 默认开启实时降噪，可在录像中切换；历史视频可再次降噪、修改音轨音量，保留原版本。
 - App 专属作品库，Android 10+ 同步到 `Movies/EchoCraft/作品名称/`。
 - 作品重命名同步修改文件夹。App 删除同时删除公共视频；返回 App 或打开作品库时同步相册中的删除，不自动补回；清理空文件夹。
@@ -45,6 +46,10 @@ Android 工具链：AGP 9.1.1、Gradle 9.3.1、SDK 35、Build Tools 36.0.0、NDK
 ```
 
 [接线说明](hardware/README.md) · [Android 说明](android/README.md) · [降噪说明](docs/board-denoise.md)
+
+当前默认和已烧录固件为专用 App 通路 `mic-usb-app`，使用一倍数字增益（不额外放大，无自动增益）；每次开始重新初始化 DSP 状态。App 在界面显示保存完成前释放录制资源，停止 USB 后清理残留包并撤销控制线。标准系统麦克风兼容工作暂时搁置。单麦克风没有距离测量功能，整体增益也会同时放大底噪，不能实现“15 厘米处最大、近处衰减”的距离曲线。
+
+MP3 编码使用动态链接的 LAME 3.100，构建时按 SHA256 校验下载；源码压缩包和构建目录不进 Git。[第三方许可与构建说明](android/THIRD_PARTY_NOTICES.md)。
 
 另有标准 USB 麦克风试验环境 `mic-usb-uac`：电脑系统音频采集已通过，但手机自带相机仍有无声反馈，尚未作为默认固件。详见 [USB 麦克风状态](docs/usb-microphone.md)。
 

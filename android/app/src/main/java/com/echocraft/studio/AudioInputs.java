@@ -211,6 +211,16 @@ final class AudioInputs {
         }
         public long firstSampleUs(){return timestamp;}
         public String diagnostics(){return "阶段："+stage+"\nUSB 字节："+receivedBytes+"\n有效包："+packets+"\n上次标志："+lastFlags;}
-        public void close(){if(connection!=null){try{send('S');}catch(Exception ignored){}closed=true;try{connection.releaseInterface(data);connection.releaseInterface(control);}catch(Exception ignored){}connection.close();connection=null;}}
+        public synchronized void close(){if(closed)return;closed=true;
+            UsbDeviceConnection active=connection;connection=null;
+            if(active!=null){
+                try{if(out!=null)active.bulkTransfer(out,new byte[]{'S'},1,300);}catch(Exception ignored){}
+                try{if(in!=null)for(int i=0;i<16;i++)if(active.bulkTransfer(in,cache,cache.length,10)<=0)break;}catch(Exception ignored){}
+                try{if(control!=null)active.controlTransfer(0x21,0x22,0,control.getId(),null,0,300);}catch(Exception ignored){}
+                try{if(data!=null)active.releaseInterface(data);}catch(Exception ignored){}
+                try{if(control!=null)active.releaseInterface(control);}catch(Exception ignored){}
+                active.close();
+            }
+        }
     }
 }

@@ -44,7 +44,7 @@ final class CameraController {
             if(context.checkSelfPermission(android.Manifest.permission.CAMERA)!=android.content.pm.PackageManager.PERMISSION_GRANTED)throw new SecurityException("请允许相机权限");
             manager.openCamera(selected,new CameraDevice.StateCallback(){
                 public void onOpened(CameraDevice camera){if(closing){camera.close();return;}device=camera;configure(null,null);}
-                public void onDisconnected(CameraDevice camera){camera.close();device=null;events.error("相机连接断开");}
+                public void onDisconnected(CameraDevice camera){camera.close();device=null;if(!closing)events.error("相机连接断开");}
                 public void onError(CameraDevice camera,int error){camera.close();device=null;events.error(error==CameraDevice.StateCallback.ERROR_CAMERA_DISABLED?"系统禁止相机访问，请在系统权限中允许":"相机不可用："+error);}
             },handler);
         }catch(Exception e){events.error(e.getMessage());}

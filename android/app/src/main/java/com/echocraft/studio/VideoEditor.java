@@ -15,6 +15,7 @@ final class VideoEditor {
     }
     static File edit(File source,boolean denoise,int volumePercent,Progress progress)throws Exception {
         if(volumePercent<0||volumePercent>300)throw new IllegalArgumentException("音量范围为 0～300%");
+        if(source.getName().endsWith(".mp3"))return editAudio(source,denoise,volumePercent,progress);
         String id=Long.toString(System.currentTimeMillis())+"-"+UUID.randomUUID().toString().substring(0,4);
         File folder=source.getParentFile(),raw=new File(folder,"pending-"+id+".pcm"),processed=new File(folder,"pending-"+id+"-processed.pcm");
         File audio=new File(folder,"pending-"+id+"-audio.mp4"),pending=new File(folder,"pending-"+id+".mp4"),result=new File(folder,"edit-"+id+".mp4");
@@ -36,6 +37,26 @@ final class VideoEditor {
         }finally {
             raw.delete();processed.delete();audio.delete();pending.delete();if(!success)result.delete();
         }
+    }
+    static File editAudio(File source,boolean denoise,int volumePercent,Progress progress)throws Exception {
+        String id=System.currentTimeMillis()+"-"+UUID.randomUUID().toString().substring(0,4);
+        File folder=source.getParentFile(),raw=new File(folder,"pending-"+id+".pcm"),processed=new File(folder,"pending-"+id+"-processed.pcm");
+        File pending=new File(folder,"pending-"+id+".mp3"),result=new File(folder,"edit-"+id+".mp3");boolean success=false;
+        try {
+            progress.update("正在解码 MP3…");PcmInfo info=decode(source,raw);
+            progress.update("正在处理音频…");long clipped=process(raw,processed,info,denoise,volumePercent/100f);
+            progress.update("正在编码 MP3…");
+            try(DataInputStream in=new DataInputStream(new BufferedInputStream(new FileInputStream(processed)));Mp3Encoder encoder=new Mp3Encoder(pending,info.rate(),info.channels())){
+                short[] block=new short[1152*info.channels()];long left=info.frames()*info.channels();
+                while(left>0){int count=(int)Math.min(left,block.length);for(int i=0;i<count;i++)block[i]=Short.reverseBytes(in.readShort());encoder.put(block,count);left-=count;}
+            }
+            MediaExtractor check=new MediaExtractor();try{check.setDataSource(pending.getAbsolutePath());int index=track(check,"audio/");
+                if(!"audio/mpeg".equals(check.getTrackFormat(index).getString(MediaFormat.KEY_MIME)))throw new IOException("输出不是有效 MP3");}finally{check.release();}
+            if(!pending.renameTo(result))throw new IOException("MP3 保存失败");
+            JSONObject report=new JSONObject();report.put("source",source.getName());report.put("denoise",denoise);report.put("volumePercent",volumePercent);report.put("frames",info.frames());report.put("clippedSamples",clipped);
+            try(FileOutputStream out=new FileOutputStream(new File(folder,result.getName()+".json"))){out.write(report.toString(2).getBytes(java.nio.charset.StandardCharsets.UTF_8));}
+            success=true;return result;
+        }finally{raw.delete();processed.delete();pending.delete();if(!success)result.delete();}
     }
     static PcmInfo decode(File source,File target)throws Exception {
         MediaExtractor extractor=new MediaExtractor();MediaCodec codec=null;
